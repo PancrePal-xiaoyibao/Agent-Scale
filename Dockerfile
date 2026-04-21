@@ -1,8 +1,8 @@
 # --- deps ---
-FROM oven/bun:1 AS deps
+FROM node:20-slim AS deps
 WORKDIR /app
-COPY package.json bun.lock ./
-RUN bun install --frozen-lockfile
+COPY package.json ./
+RUN npm install
 
 # --- build ---
 FROM node:20-slim AS builder
