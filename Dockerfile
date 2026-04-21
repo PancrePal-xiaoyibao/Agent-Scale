@@ -4,7 +4,7 @@ FROM oven/bun:1 AS base
 FROM base AS deps
 WORKDIR /app
 COPY package.json bun.lock ./
-RUN bun install --frozen-lockfile --production=false
+RUN bun install --frozen-lockfile
 
 # --- build ---
 FROM base AS builder
@@ -22,7 +22,7 @@ FROM base AS runner
 WORKDIR /app
 ENV NODE_ENV=production
 
-RUN adduser --system --uid 1001 nextjs
+RUN useradd --system --uid 1001 nextjs
 
 COPY --from=builder /app/public ./public
 COPY --from=builder --chown=1001:0 /app/.next/standalone ./
