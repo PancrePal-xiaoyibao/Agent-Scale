@@ -1,22 +1,20 @@
-FROM node:20-slim AS base
-RUN npm install -g bun
-
 # --- deps ---
-FROM base AS deps
+FROM oven/bun:1 AS deps
 WORKDIR /app
 COPY package.json bun.lock ./
-RUN bun install
+RUN bun install --frozen-lockfile
 
 # --- build ---
-FROM base AS builder
+FROM node:20-slim AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
 ARG NEXT_PUBLIC_BASE_URL
 ENV NEXT_PUBLIC_BASE_URL=${NEXT_PUBLIC_BASE_URL}
+ENV NEXT_TELEMETRY_DISABLED=1
 
-RUN bun run build
+RUN npx next build
 
 # --- runner ---
 FROM node:20-slim AS runner
