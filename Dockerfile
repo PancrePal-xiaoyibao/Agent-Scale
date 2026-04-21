@@ -1,4 +1,5 @@
-FROM oven/bun:1 AS base
+FROM node:20-alpine AS base
+RUN corepack disable && npm install -g bun
 
 # --- deps ---
 FROM base AS deps
@@ -15,14 +16,14 @@ COPY . .
 ARG NEXT_PUBLIC_BASE_URL
 ENV NEXT_PUBLIC_BASE_URL=${NEXT_PUBLIC_BASE_URL}
 
-RUN bun run build
+RUN npm run build
 
 # --- runner ---
-FROM base AS runner
+FROM node:20-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production
 
-RUN useradd --system --uid 1001 nextjs
+RUN adduser -S -u 1001 nextjs
 
 COPY --from=builder /app/public ./public
 COPY --from=builder --chown=1001:0 /app/.next/standalone ./
@@ -37,4 +38,4 @@ EXPOSE 3000
 ENV PORT=3000
 ENV HOSTNAME=0.0.0.0
 
-CMD ["sh", "-c", "bun scripts/migrate.mjs && bun server.js"]
+CMD ["sh", "-c", "node scripts/migrate.mjs && node server.js"]
