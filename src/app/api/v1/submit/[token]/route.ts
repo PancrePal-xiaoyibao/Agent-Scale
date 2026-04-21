@@ -83,6 +83,29 @@ export async function POST(
     return NextResponse.json({ error: "Failed to save response" }, { status: 500 });
   }
 
+  const detailItems = template.schema.questions.map((q) => {
+    const value = body.answers[q.id] ?? 0;
+    return {
+      question_id: q.id,
+      question_text: q.text,
+      selected_value: value,
+      selected_label: q.options.find((o) => o.value === value)?.label ?? null,
+    };
+  });
+
+  const maxScore = Math.max(
+    ...template.scoring_rules.risk_levels.map((r) => r.max)
+  );
+
+  const fullResult = {
+    raw_score: scoreResult.raw_score,
+    max_score: maxScore,
+    risk_level: scoreResult.risk_level,
+    dimension_scores: scoreResult.dimension_scores,
+    completed_at: new Date().toISOString(),
+    items: detailItems,
+  };
+
   if (session.callback_url) {
     fetch(session.callback_url, {
       method: "POST",
@@ -90,14 +113,13 @@ export async function POST(
       body: JSON.stringify({
         event: "session.completed",
         session_id: session.id,
-        risk_level: scoreResult.risk_level,
-        raw_score: scoreResult.raw_score,
+        result: fullResult,
       }),
     }).catch(() => {});
   }
 
   return NextResponse.json({
     status: "completed",
-    message: "Assessment submitted successfully",
+    result: fullResult,
   });
 }

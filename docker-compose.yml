@@ -17,10 +17,7 @@ services:
       retries: 5
 
   app:
-    build:
-      context: .
-      args:
-        NEXT_PUBLIC_BASE_URL: ${NEXT_PUBLIC_BASE_URL:-http://localhost:3000}
+    image: ghcr.io/pancrepal-xiaoyibao/agent-scale:latest
     restart: unless-stopped
     ports:
       - "3000:3000"

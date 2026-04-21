@@ -83,9 +83,12 @@ export default function AssessmentForm({ questions, token }: Props) {
   const isLastPage = currentPage === totalPages - 1;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       {/* Progress bar */}
-      <div className="sticky top-0 z-10 bg-zinc-50 dark:bg-zinc-950 py-3">
+      <div
+        className="sticky top-0 z-10 bg-zinc-50 dark:bg-zinc-950 pb-3"
+        style={{ paddingTop: "max(0.75rem, var(--sat))" }}
+      >
         <div className="flex items-center justify-between text-sm text-zinc-500 dark:text-zinc-400 mb-2">
           <span>
             已完成 {answeredCount}/{questions.length}
@@ -103,15 +106,15 @@ export default function AssessmentForm({ questions, token }: Props) {
       </div>
 
       {/* Questions */}
-      <div className="space-y-6">
+      <div className="space-y-4 sm:space-y-6">
         {pageQuestions.map((question, idx) => {
           const globalIdx = currentPage * questionsPerPage + idx;
           return (
             <div
               key={question.id}
-              className="p-5 bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 shadow-sm"
+              className="p-4 sm:p-5 bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 shadow-sm"
             >
-              <p className="font-medium text-zinc-900 dark:text-zinc-100 mb-4">
+              <p className="font-medium text-zinc-900 dark:text-zinc-100 mb-3 sm:mb-4">
                 <span className="text-zinc-400 dark:text-zinc-500 mr-2">
                   {globalIdx + 1}.
                 </span>
@@ -120,7 +123,7 @@ export default function AssessmentForm({ questions, token }: Props) {
                   <span className="text-red-500 ml-1">*</span>
                 )}
               </p>
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <div className="grid grid-cols-2 gap-2 sm:gap-3 sm:grid-cols-4">
                 {question.options.map((option) => {
                   const selected = answers[question.id] === option.value;
                   return (
@@ -131,8 +134,8 @@ export default function AssessmentForm({ questions, token }: Props) {
                         handleSelect(question.id, option.value)
                       }
                       className={`
-                        px-4 py-3 rounded-lg text-sm font-medium transition-all
-                        border-2 cursor-pointer
+                        px-3 py-3.5 sm:px-4 sm:py-3 rounded-lg text-sm font-medium transition-all
+                        border-2 cursor-pointer active:scale-[0.97]
                         ${
                           selected
                             ? "bg-blue-50 dark:bg-blue-950 border-blue-500 text-blue-700 dark:text-blue-300"
@@ -158,12 +161,15 @@ export default function AssessmentForm({ questions, token }: Props) {
       )}
 
       {/* Navigation */}
-      <div className="flex gap-3 pt-4 pb-8">
+      <div
+        className="flex gap-3 pt-4"
+        style={{ paddingBottom: "max(2rem, calc(var(--sab) + 1rem))" }}
+      >
         {currentPage > 0 && (
           <button
             type="button"
             onClick={handlePrev}
-            className="flex-1 py-3 rounded-xl border-2 border-zinc-200 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 font-medium hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
+            className="flex-1 py-3.5 sm:py-3 rounded-xl border-2 border-zinc-200 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 font-medium hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer active:scale-[0.98]"
           >
             上一页
           </button>
@@ -173,7 +179,7 @@ export default function AssessmentForm({ questions, token }: Props) {
             type="button"
             onClick={handleSubmit}
             disabled={submitting}
-            className="flex-1 py-3 rounded-xl bg-blue-600 text-white font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-pointer"
+            className="flex-1 py-3.5 sm:py-3 rounded-xl bg-blue-600 text-white font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-pointer active:scale-[0.98]"
           >
             {submitting ? "提交中..." : "提交问卷"}
           </button>
@@ -181,7 +187,7 @@ export default function AssessmentForm({ questions, token }: Props) {
           <button
             type="button"
             onClick={handleNext}
-            className="flex-1 py-3 rounded-xl bg-blue-600 text-white font-medium hover:bg-blue-700 transition-colors cursor-pointer"
+            className="flex-1 py-3.5 sm:py-3 rounded-xl bg-blue-600 text-white font-medium hover:bg-blue-700 transition-colors cursor-pointer active:scale-[0.98]"
           >
             下一页
           </button>

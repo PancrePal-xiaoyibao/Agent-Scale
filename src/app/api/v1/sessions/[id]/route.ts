@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyApiKey } from "@/lib/auth";
 import { findTemplateBySlug } from "@/lib/templates";
+import { buildDetailedResult } from "@/lib/scoring/detail";
 import {
   expireSession,
   getResponseBySessionId,
@@ -51,14 +52,19 @@ export async function GET(
           }
         : null,
     },
-    result: response
+    result: response && template
       ? {
+          ...buildDetailedResult(response, template),
           answers: response.answers,
-          raw_score: response.raw_score,
-          dimension_scores: response.dimension_scores,
-          risk_level: response.risk_level,
-          completed_at: response.completed_at,
         }
-      : null,
+      : response
+        ? {
+            answers: response.answers,
+            raw_score: response.raw_score,
+            dimension_scores: response.dimension_scores,
+            risk_level: response.risk_level,
+            completed_at: response.completed_at,
+          }
+        : null,
   });
 }

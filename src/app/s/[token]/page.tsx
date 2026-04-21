@@ -1,6 +1,6 @@
 import { hashApiKey } from "@/lib/auth";
 import { findTemplateBySlug } from "@/lib/templates";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { getSessionByTokenHash } from "@/lib/store";
 import AssessmentForm from "./assessment-form";
 
@@ -19,19 +19,7 @@ export default async function AssessmentPage({ params }: Props) {
   }
 
   if (session.status === "completed") {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-zinc-50 dark:bg-zinc-950 px-4">
-        <div className="max-w-md w-full text-center space-y-4">
-          <div className="text-5xl">✅</div>
-          <h1 className="text-2xl font-semibold text-zinc-900 dark:text-zinc-100">
-            问卷已完成
-          </h1>
-          <p className="text-zinc-500 dark:text-zinc-400">
-            您已提交过此问卷，无需重复填写。
-          </p>
-        </div>
-      </div>
-    );
+    redirect(`/s/${token}/done`);
   }
 
   if (
@@ -39,13 +27,13 @@ export default async function AssessmentPage({ params }: Props) {
     new Date(session.expires_at) < new Date()
   ) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-zinc-50 dark:bg-zinc-950 px-4">
+      <div className="min-h-screen flex items-center justify-center bg-zinc-50 dark:bg-zinc-950 px-6">
         <div className="max-w-md w-full text-center space-y-4">
           <div className="text-5xl">⏰</div>
-          <h1 className="text-2xl font-semibold text-zinc-900 dark:text-zinc-100">
+          <h1 className="text-xl sm:text-2xl font-semibold text-zinc-900 dark:text-zinc-100">
             链接已过期
           </h1>
-          <p className="text-zinc-500 dark:text-zinc-400">
+          <p className="text-sm sm:text-base text-zinc-500 dark:text-zinc-400">
             此测评链接已失效，请联系您的咨询师获取新链接。
           </p>
         </div>
@@ -62,10 +50,13 @@ export default async function AssessmentPage({ params }: Props) {
   const schema = template.schema;
 
   return (
-    <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 py-8 px-4">
+    <div
+      className="min-h-screen bg-zinc-50 dark:bg-zinc-950 py-4 sm:py-8 px-4"
+      style={{ paddingLeft: "max(1rem, var(--sal))", paddingRight: "max(1rem, var(--sar))" }}
+    >
       <div className="max-w-2xl mx-auto">
-        <div className="mb-8 text-center">
-          <h1 className="text-2xl font-semibold text-zinc-900 dark:text-zinc-100">
+        <div className="mb-6 sm:mb-8 text-center">
+          <h1 className="text-xl sm:text-2xl font-semibold text-zinc-900 dark:text-zinc-100">
             {template.name}
           </h1>
           {template.description && (
@@ -76,7 +67,7 @@ export default async function AssessmentPage({ params }: Props) {
         </div>
 
         {schema.instructions && (
-          <div className="mb-6 p-4 rounded-lg bg-blue-50 dark:bg-blue-950/30 border border-blue-100 dark:border-blue-900">
+          <div className="mb-4 sm:mb-6 p-3 sm:p-4 rounded-lg bg-blue-50 dark:bg-blue-950/30 border border-blue-100 dark:border-blue-900">
             <p className="text-sm text-blue-800 dark:text-blue-200">
               {schema.instructions}
             </p>
