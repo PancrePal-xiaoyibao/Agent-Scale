@@ -1,5 +1,5 @@
-FROM node:20-alpine AS base
-RUN corepack disable && npm install -g bun
+FROM node:20-slim AS base
+RUN npm install -g bun
 
 # --- deps ---
 FROM base AS deps
@@ -19,11 +19,11 @@ ENV NEXT_PUBLIC_BASE_URL=${NEXT_PUBLIC_BASE_URL}
 RUN bun run build
 
 # --- runner ---
-FROM node:20-alpine AS runner
+FROM node:20-slim AS runner
 WORKDIR /app
 ENV NODE_ENV=production
 
-RUN adduser -S -u 1001 nextjs
+RUN useradd --system --uid 1001 nextjs
 
 COPY --from=builder /app/public ./public
 COPY --from=builder --chown=1001:0 /app/.next/standalone ./
