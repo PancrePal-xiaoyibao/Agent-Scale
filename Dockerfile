@@ -5,7 +5,7 @@ RUN corepack disable && npm install -g bun
 FROM base AS deps
 WORKDIR /app
 COPY package.json bun.lock ./
-RUN bun install --frozen-lockfile
+RUN bun install
 
 # --- build ---
 FROM base AS builder
@@ -16,7 +16,7 @@ COPY . .
 ARG NEXT_PUBLIC_BASE_URL
 ENV NEXT_PUBLIC_BASE_URL=${NEXT_PUBLIC_BASE_URL}
 
-RUN npm run build
+RUN bun run build
 
 # --- runner ---
 FROM node:20-alpine AS runner
