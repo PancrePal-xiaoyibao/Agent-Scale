@@ -1,0 +1,1238 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Agent Scale — 心理测评微服务 API",
+    "description": "Headless psychometric assessment microservice for AI Agents.\n\nAgent 通过此 API 可以：\n1. 获取可用的心理测评量表列表\n2. 为用户创建限时评测会话，获得可分享的链接\n3. 用户完成填写后，通过 Webhook 回调或主动轮询获取评分结果\n\n## 认证方式\n\n- **Agent API Key**：通过 `X-API-Key` 请求头传递，用于 Session 管理相关接口\n- **Admin Bearer Token**：通过 `Authorization: Bearer <token>` 传递，用于 Agent 注册接口\n\n## 典型工作流\n\n```\n1. GET  /api/v1/templates              → 获取可用量表\n2. POST /api/v1/sessions               → 创建评测会话\n3. → 将 assessment_url 发送给用户\n4. 用户完成填写后:\n   - callback_url 收到 Webhook 通知, 或\n   - GET /api/v1/sessions/{id}         → 主动查询结果\n```",
+    "version": "1.0.0",
+    "contact": {
+      "name": "Agent Scale"
+    }
+  },
+  "servers": [
+    {
+      "url": "http://localhost:3000",
+      "description": "Local development"
+    }
+  ],
+  "tags": [
+    {
+      "name": "Health",
+      "description": "服务健康检查"
+    },
+    {
+      "name": "Templates",
+      "description": "量表模板管理"
+    },
+    {
+      "name": "Sessions",
+      "description": "评测会话管理"
+    },
+    {
+      "name": "Submission",
+      "description": "答卷提交与评分"
+    },
+    {
+      "name": "Agents",
+      "description": "Agent 注册与管理"
+    }
+  ],
+  "paths": {
+    "/api/v1/health": {
+      "get": {
+        "operationId": "getHealth",
+        "tags": ["Health"],
+        "summary": "服务健康检查",
+        "description": "检查服务状态与数据库连通性。",
+        "responses": {
+          "200": {
+            "description": "服务正常",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                },
+                "example": {
+                  "status": "healthy",
+                  "version": "1.0.0",
+                  "services": {
+                    "database": "ok",
+                    "templates": 3
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "服务降级（数据库不可用）"
+          }
+        }
+      }
+    },
+    "/api/v1/templates": {
+      "get": {
+        "operationId": "listTemplates",
+        "tags": ["Templates"],
+        "summary": "获取可用量表列表",
+        "description": "返回所有可用的心理测评量表摘要信息。Agent 可据此向用户推荐合适的量表。\n\n返回的摘要包含 `question_count`（题目数）和 `estimated_minutes`（预估完成时间）等元数据，不包含完整题目，适合做列表展示。",
+        "responses": {
+          "200": {
+            "description": "量表摘要列表",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "templates": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/TemplateSummary"
+                      }
+                    }
+                  }
+                },
+                "example": {
+                  "templates": [
+                    {
+                      "id": "f7c0d7c9-6306-4bc2-9f60-6792d9f1c1d2",
+                      "slug": "gad-7",
+                      "name": "GAD-7 广泛性焦虑障碍量表",
+                      "description": "Generalized Anxiety Disorder-7，用于筛查和评估广泛性焦虑障碍的标准化工具。",
+                      "category": "anxiety",
+                      "tags": ["焦虑", "情绪", "GAD-7", "筛查"],
+                      "question_count": 7,
+                      "estimated_minutes": 4,
+                      "version": "1.0.0"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/templates/{slug}": {
+      "get": {
+        "operationId": "getTemplate",
+        "tags": ["Templates"],
+        "summary": "获取量表详情",
+        "description": "根据 slug 获取量表的完整定义，包括所有题目、选项和评分规则。适用于 Agent 需要了解量表具体内容的场景。",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "description": "量表标识符",
+            "schema": {
+              "type": "string",
+              "enum": ["phq-9", "gad-7", "sss"]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "量表完整定义",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TemplateDetail"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "量表不存在",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": "Template not found"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/agents/register": {
+      "post": {
+        "operationId": "registerAgent",
+        "tags": ["Agents"],
+        "summary": "注册新 Agent",
+        "description": "创建一个新的 Agent 并获取 API Key。需要管理员 Bearer Token 授权。\n\n**注意：API Key 仅在注册时返回一次，请妥善保存。**",
+        "security": [
+          {
+            "AdminBearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterAgentRequest"
+              },
+              "example": {
+                "name": "My AI Assistant",
+                "org_id": "my-org"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Agent 注册成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RegisterAgentResponse"
+                },
+                "example": {
+                  "agent_id": "34f6a49e-6fd4-4ba7-a789-e3cc2eb53eb9",
+                  "name": "My AI Assistant",
+                  "api_key": "ask_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+                  "message": "Save this API key — it will not be shown again."
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "请求参数错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "管理员授权无效",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": "Invalid or missing admin authorization"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Agent 注册未配置（缺少 ADMIN_API_KEY）",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/sessions": {
+      "post": {
+        "operationId": "createSession",
+        "tags": ["Sessions"],
+        "summary": "创建评测会话",
+        "description": "为指定量表创建一个限时评测会话，返回可分享的评测链接 `assessment_url`。\n\nAgent 应将此链接发送给用户完成填写。可通过 `callback_url` 设置 Webhook 回调，在用户完成后自动接收评分结果。",
+        "security": [
+          {
+            "ApiKey": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateSessionRequest"
+              },
+              "examples": {
+                "basic": {
+                  "summary": "基础创建",
+                  "value": {
+                    "template_slug": "phq-9"
+                  }
+                },
+                "with_callback": {
+                  "summary": "带 Webhook 回调",
+                  "value": {
+                    "template_slug": "phq-9",
+                    "expires_in": 3600,
+                    "callback_url": "https://my-agent.example.com/webhook/assessment"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "会话创建成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionCreated"
+                },
+                "example": {
+                  "session_id": "19de2015-94b2-4de1-ab0a-08fb56b4913a",
+                  "assessment_url": "https://scale.example.com/s/HUbPDOiDeKe_a3h6ui3Vha2duZK4NM_WCHWoTnI74U8",
+                  "expires_at": "2026-04-22T04:25:55.789Z",
+                  "template": {
+                    "id": "8f1e6f8d-4d6d-4df8-9c4e-4c76f8a5c901",
+                    "slug": "phq-9",
+                    "name": "PHQ-9 患者健康问卷（抑郁）"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "请求参数错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "API Key 无效",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "量表不存在",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "operationId": "listSessions",
+        "tags": ["Sessions"],
+        "summary": "查询会话列表",
+        "description": "查询当前 Agent 创建的所有评测会话，支持按状态和量表类型过滤。",
+        "security": [
+          {
+            "ApiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "description": "按状态过滤",
+            "schema": {
+              "type": "string",
+              "enum": ["pending", "in_progress", "completed", "expired"]
+            }
+          },
+          {
+            "name": "template_slug",
+            "in": "query",
+            "description": "按量表类型过滤",
+            "schema": {
+              "type": "string",
+              "enum": ["phq-9", "gad-7", "sss"]
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "返回数量上限",
+            "schema": {
+              "type": "integer",
+              "default": 50,
+              "minimum": 1,
+              "maximum": 100
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "会话列表",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "sessions": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Session"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "API Key 无效",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/sessions/{id}": {
+      "get": {
+        "operationId": "getSession",
+        "tags": ["Sessions"],
+        "summary": "获取会话详情与评测结果",
+        "description": "查询指定会话的状态。如果会话已完成（`status: completed`），`result` 字段将包含完整的评分结果和逐题明细。\n\n这是 Agent 获取用户评测结果的主要方式（轮询模式）。",
+        "security": [
+          {
+            "ApiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "会话 ID",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "会话详情（含评测结果，如已完成）",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "session": {
+                      "$ref": "#/components/schemas/SessionDetail"
+                    },
+                    "result": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/components/schemas/AssessmentResult"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "description": "评测结果，仅在 status=completed 时有值"
+                    }
+                  }
+                },
+                "examples": {
+                  "completed": {
+                    "summary": "已完成的会话",
+                    "value": {
+                      "session": {
+                        "id": "19de2015-94b2-4de1-ab0a-08fb56b4913a",
+                        "status": "completed",
+                        "created_at": "2026-04-22T03:25:55.865Z",
+                        "expires_at": "2026-04-22T04:25:55.789Z",
+                        "completed_at": "2026-04-22T03:26:05.741Z",
+                        "template": {
+                          "id": "8f1e6f8d-4d6d-4df8-9c4e-4c76f8a5c901",
+                          "slug": "phq-9",
+                          "name": "PHQ-9 患者健康问卷（抑郁）"
+                        }
+                      },
+                      "result": {
+                        "raw_score": 8,
+                        "max_score": 27,
+                        "risk_level": "轻度",
+                        "dimension_scores": null,
+                        "completed_at": "2026-04-22T03:26:05.816Z",
+                        "items": [
+                          {
+                            "question_id": "phq9_q1",
+                            "question_text": "对事情没有兴趣",
+                            "selected_value": 1,
+                            "selected_label": "有几天"
+                          }
+                        ],
+                        "answers": {
+                          "phq9_q1": 1
+                        }
+                      }
+                    }
+                  },
+                  "pending": {
+                    "summary": "待填写的会话",
+                    "value": {
+                      "session": {
+                        "id": "19de2015-94b2-4de1-ab0a-08fb56b4913a",
+                        "status": "pending",
+                        "created_at": "2026-04-22T03:25:55.865Z",
+                        "expires_at": "2026-04-22T04:25:55.789Z",
+                        "completed_at": null,
+                        "template": {
+                          "id": "8f1e6f8d-4d6d-4df8-9c4e-4c76f8a5c901",
+                          "slug": "phq-9",
+                          "name": "PHQ-9 患者健康问卷（抑郁）"
+                        }
+                      },
+                      "result": null
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "API Key 无效",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "会话不存在",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/submit/{token}": {
+      "post": {
+        "operationId": "submitAnswers",
+        "tags": ["Submission"],
+        "summary": "提交评测答卷",
+        "description": "用户完成填写后提交答案。通常由前端页面调用，但 Agent 也可以直接调用（如需要程序化提交）。\n\n提交后系统会：\n1. 验证所有必答题是否已作答\n2. 自动计算评分和风险等级\n3. 如果创建会话时设置了 `callback_url`，向该 URL 发送 Webhook 通知\n4. 返回完整的评分结果",
+        "parameters": [
+          {
+            "name": "token",
+            "in": "path",
+            "required": true,
+            "description": "会话 Token（来自 assessment_url 的路径部分）",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SubmitAnswersRequest"
+              },
+              "example": {
+                "answers": {
+                  "phq9_q1": 1,
+                  "phq9_q2": 2,
+                  "phq9_q3": 1,
+                  "phq9_q4": 0,
+                  "phq9_q5": 1,
+                  "phq9_q6": 2,
+                  "phq9_q7": 1,
+                  "phq9_q8": 0,
+                  "phq9_q9": 0
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "提交成功，返回评分结果",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "const": "completed"
+                    },
+                    "result": {
+                      "$ref": "#/components/schemas/AssessmentResult"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "答案不完整或格式错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "missing": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "description": "缺失的必答题 ID 列表"
+                    }
+                  }
+                },
+                "example": {
+                  "error": "Missing required answers",
+                  "missing": ["phq9_q8", "phq9_q9"]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "会话 Token 无效",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "会话已完成，不可重复提交",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": "Session already completed"
+                }
+              }
+            }
+          },
+          "410": {
+            "description": "会话已过期",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": "Session has expired"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/public-sessions": {
+      "post": {
+        "operationId": "createPublicSession",
+        "tags": ["Sessions"],
+        "summary": "创建公开评测会话（无需认证）",
+        "description": "用于 Web 端用户自助发起评测的场景，无需 API Key。会话有效期为 2 小时。",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["template_slug"],
+                "properties": {
+                  "template_slug": {
+                    "type": "string",
+                    "enum": ["phq-9", "gad-7", "sss"],
+                    "description": "量表标识符"
+                  }
+                }
+              },
+              "example": {
+                "template_slug": "phq-9"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "会话创建成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "assessment_url": {
+                      "type": "string",
+                      "format": "uri",
+                      "description": "评测页面链接"
+                    },
+                    "session_id": {
+                      "type": "string",
+                      "format": "uuid"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "缺少 template_slug"
+          },
+          "404": {
+            "description": "量表不存在"
+          }
+        }
+      }
+    },
+    "/api/v1/openapi": {
+      "get": {
+        "operationId": "getOpenApiSpec",
+        "tags": ["Health"],
+        "summary": "获取 OpenAPI 规范",
+        "description": "返回此 API 的 OpenAPI 3.1 规范（动态生成，反映当前可用的量表）。",
+        "responses": {
+          "200": {
+            "description": "OpenAPI 3.1 JSON 规范"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "ApiKey": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-API-Key",
+        "description": "Agent API Key，通过 `/api/v1/agents/register` 注册获取"
+      },
+      "AdminBearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "管理员密钥，通过服务端 `ADMIN_API_KEY` 环境变量配置"
+      }
+    },
+    "schemas": {
+      "Error": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string",
+            "description": "错误信息"
+          }
+        },
+        "required": ["error"]
+      },
+      "HealthResponse": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": ["healthy", "degraded"],
+            "description": "服务状态"
+          },
+          "version": {
+            "type": "string",
+            "description": "API 版本"
+          },
+          "services": {
+            "type": "object",
+            "properties": {
+              "database": {
+                "type": "string",
+                "enum": ["ok", "unavailable"],
+                "description": "数据库连接状态"
+              },
+              "templates": {
+                "type": "integer",
+                "description": "可用量表数量"
+              }
+            }
+          }
+        }
+      },
+      "TemplateSummary": {
+        "type": "object",
+        "description": "量表摘要信息，用于列表展示",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "量表唯一 ID"
+          },
+          "slug": {
+            "type": "string",
+            "description": "量表标识符（用于 API 调用）",
+            "examples": ["phq-9", "gad-7", "sss"]
+          },
+          "name": {
+            "type": "string",
+            "description": "量表名称"
+          },
+          "description": {
+            "type": "string",
+            "description": "量表说明"
+          },
+          "category": {
+            "type": "string",
+            "description": "分类",
+            "enum": ["depression", "anxiety", "somatic"]
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "标签列表"
+          },
+          "question_count": {
+            "type": "integer",
+            "description": "题目数量"
+          },
+          "estimated_minutes": {
+            "type": "integer",
+            "description": "预估完成时间（分钟）"
+          },
+          "version": {
+            "type": "string",
+            "description": "量表版本"
+          }
+        }
+      },
+      "TemplateDetail": {
+        "type": "object",
+        "description": "量表完整定义，包含题目和评分规则",
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/TemplateSummary"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "schema": {
+                "$ref": "#/components/schemas/QuestionSchema"
+              },
+              "scoring_rules": {
+                "$ref": "#/components/schemas/ScoringRules"
+              }
+            }
+          }
+        ]
+      },
+      "QuestionSchema": {
+        "type": "object",
+        "description": "题目定义",
+        "properties": {
+          "instructions": {
+            "type": "string",
+            "description": "填写说明"
+          },
+          "questions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Question"
+            }
+          }
+        }
+      },
+      "Question": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "题目 ID（用于提交答案的 key）"
+          },
+          "text": {
+            "type": "string",
+            "description": "题目文本"
+          },
+          "type": {
+            "type": "string",
+            "enum": ["likert", "single_choice"],
+            "description": "题目类型"
+          },
+          "required": {
+            "type": "boolean",
+            "description": "是否必答"
+          },
+          "options": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Option"
+            },
+            "description": "选项列表"
+          }
+        }
+      },
+      "Option": {
+        "type": "object",
+        "properties": {
+          "label": {
+            "type": "string",
+            "description": "选项文本"
+          },
+          "value": {
+            "type": "integer",
+            "description": "选项分值"
+          }
+        }
+      },
+      "ScoringRules": {
+        "type": "object",
+        "description": "评分规则",
+        "properties": {
+          "method": {
+            "type": "string",
+            "enum": ["sum"],
+            "description": "评分方法"
+          },
+          "risk_levels": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RiskLevel"
+            },
+            "description": "风险等级划分"
+          },
+          "dimensions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Dimension"
+            },
+            "description": "评分维度（可选）"
+          }
+        }
+      },
+      "RiskLevel": {
+        "type": "object",
+        "properties": {
+          "label": {
+            "type": "string",
+            "description": "等级标签（正常/轻度/中度/重度）"
+          },
+          "min": {
+            "type": "integer",
+            "description": "该等级最低分"
+          },
+          "max": {
+            "type": "integer",
+            "description": "该等级最高分"
+          }
+        }
+      },
+      "Dimension": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "question_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "RegisterAgentRequest": {
+        "type": "object",
+        "required": ["name"],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Agent 显示名称"
+          },
+          "org_id": {
+            "type": "string",
+            "description": "组织标识符（可选，默认 'default'）"
+          }
+        }
+      },
+      "RegisterAgentResponse": {
+        "type": "object",
+        "properties": {
+          "agent_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Agent ID"
+          },
+          "name": {
+            "type": "string",
+            "description": "Agent 名称"
+          },
+          "api_key": {
+            "type": "string",
+            "description": "API Key（仅返回一次，请妥善保存）"
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      },
+      "CreateSessionRequest": {
+        "type": "object",
+        "properties": {
+          "template_slug": {
+            "type": "string",
+            "enum": ["phq-9", "gad-7", "sss"],
+            "description": "量表标识符（推荐使用）"
+          },
+          "template_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "量表 UUID（与 template_slug 二选一）"
+          },
+          "expires_in": {
+            "type": "integer",
+            "default": 86400,
+            "description": "会话过期时间（秒），默认 24 小时"
+          },
+          "callback_url": {
+            "type": "string",
+            "format": "uri",
+            "description": "Webhook 回调 URL，用户完成评测后系统会 POST 评分结果到此地址"
+          }
+        }
+      },
+      "SessionCreated": {
+        "type": "object",
+        "description": "会话创建成功的返回",
+        "properties": {
+          "session_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "会话 ID（用于后续查询结果）"
+          },
+          "assessment_url": {
+            "type": "string",
+            "format": "uri",
+            "description": "评测链接（发送给用户填写）"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "会话过期时间"
+          },
+          "template": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "slug": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "Session": {
+        "type": "object",
+        "description": "会话列表项",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["pending", "in_progress", "completed", "expired"],
+            "description": "会话状态：pending=待填写, completed=已完成, expired=已过期"
+          },
+          "template_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "template_slug": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "completed_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          }
+        }
+      },
+      "SessionDetail": {
+        "type": "object",
+        "description": "会话详情",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["pending", "in_progress", "completed", "expired"]
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "completed_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "template": {
+            "type": "object",
+            "nullable": true,
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "slug": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "SubmitAnswersRequest": {
+        "type": "object",
+        "required": ["answers"],
+        "properties": {
+          "answers": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "description": "答案映射：{ question_id: selected_value }"
+          }
+        }
+      },
+      "AssessmentResult": {
+        "type": "object",
+        "description": "评测结果",
+        "properties": {
+          "raw_score": {
+            "type": "integer",
+            "description": "原始总分"
+          },
+          "max_score": {
+            "type": "integer",
+            "description": "该量表满分"
+          },
+          "risk_level": {
+            "type": "string",
+            "description": "风险等级：正常 / 轻度 / 中度 / 重度"
+          },
+          "dimension_scores": {
+            "type": "object",
+            "nullable": true,
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "description": "维度得分（如有）"
+          },
+          "completed_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "完成时间"
+          },
+          "items": {
+            "type": "array",
+            "description": "逐题明细",
+            "items": {
+              "$ref": "#/components/schemas/ResultItem"
+            }
+          },
+          "answers": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "description": "原始答案（仅在 GET /sessions/{id} 返回）"
+          }
+        }
+      },
+      "ResultItem": {
+        "type": "object",
+        "description": "单题结果明细",
+        "properties": {
+          "question_id": {
+            "type": "string"
+          },
+          "question_text": {
+            "type": "string",
+            "description": "题目文本"
+          },
+          "selected_value": {
+            "type": "integer",
+            "description": "选中的分值"
+          },
+          "selected_label": {
+            "type": "string",
+            "nullable": true,
+            "description": "选中的选项文本"
+          }
+        }
+      },
+      "WebhookPayload": {
+        "type": "object",
+        "description": "Webhook 回调 POST 请求体（发送到 callback_url）",
+        "properties": {
+          "event": {
+            "type": "string",
+            "const": "session.completed",
+            "description": "事件类型"
+          },
+          "session_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "会话 ID"
+          },
+          "result": {
+            "$ref": "#/components/schemas/AssessmentResult"
+          }
+        }
+      }
+    }
+  }
+}
