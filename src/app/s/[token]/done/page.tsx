@@ -9,6 +9,13 @@ interface Props {
   params: Promise<{ token: string }>;
 }
 
+async function getBaseUrlFromHeaders() {
+  const h = await headers();
+  const host = h.get("host") ?? "localhost:3000";
+  const proto = h.get("x-forwarded-proto") ?? "http";
+  return `${proto}://${host}`;
+}
+
 const RISK_LEVEL_STYLES: Record<string, { bg: string; text: string; border: string; dot: string }> = {
   "正常": { bg: "bg-emerald-50 dark:bg-emerald-950/30", text: "text-emerald-700 dark:text-emerald-300", border: "border-emerald-200 dark:border-emerald-800", dot: "bg-emerald-500" },
   "轻度": { bg: "bg-amber-50 dark:bg-amber-950/30", text: "text-amber-700 dark:text-amber-300", border: "border-amber-200 dark:border-amber-800", dot: "bg-amber-500" },
@@ -51,10 +58,8 @@ export default async function AssessmentDonePage({ params }: Props) {
   const scorePercent = maxScore ? Math.round((response.raw_score / maxScore) * 100) : null;
   const riskStyle = RISK_LEVEL_STYLES[response.risk_level] ?? DEFAULT_STYLE;
 
-  const headerList = await headers();
-  const host = headerList.get("host") ?? "localhost:3000";
-  const proto = headerList.get("x-forwarded-proto") ?? "http";
-  const resultUrl = `${proto}://${host}/s/${token}/done`;
+  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || await getBaseUrlFromHeaders();
+  const resultUrl = `${baseUrl}/s/${token}/done`;
 
   const completedDate = response.completed_at
     ? new Date(response.completed_at).toLocaleString("zh-CN", {
