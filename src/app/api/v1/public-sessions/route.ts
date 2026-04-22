@@ -38,7 +38,7 @@ export async function POST(request: NextRequest) {
       status: "pending",
     });
 
-    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || request.nextUrl.origin;
+    const baseUrl = process.env.BASE_URL || process.env.NEXT_PUBLIC_BASE_URL || request.nextUrl.origin;
 
     return NextResponse.json({
       assessment_url: `${baseUrl}/s/${token}`,

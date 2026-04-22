@@ -58,7 +58,7 @@ export default async function AssessmentDonePage({ params }: Props) {
   const scorePercent = maxScore ? Math.round((response.raw_score / maxScore) * 100) : null;
   const riskStyle = RISK_LEVEL_STYLES[response.risk_level] ?? DEFAULT_STYLE;
 
-  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || await getBaseUrlFromHeaders();
+  const baseUrl = process.env.BASE_URL || process.env.NEXT_PUBLIC_BASE_URL || await getBaseUrlFromHeaders();
   const resultUrl = `${baseUrl}/s/${token}/done`;
 
   const completedDate = response.completed_at
