@@ -83,8 +83,17 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Invalid or missing API key" }, { status: 401 });
   }
 
+  const url = request.nextUrl;
+  const status = url.searchParams.get("status") || undefined;
+  const templateSlug = url.searchParams.get("template_slug") || undefined;
+  const limit = Math.min(parseInt(url.searchParams.get("limit") || "50"), 100);
+
   try {
-    const sessions = (await listSessionsByAgent(agent.id)).map((session) => {
+    const sessions = (await listSessionsByAgent(agent.id, {
+      status,
+      template_slug: templateSlug,
+      limit,
+    })).map((session) => {
       const template = findTemplateBySlug(session.template_slug);
 
       return {

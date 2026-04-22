@@ -151,16 +151,36 @@ export async function createSession(input: CreateSessionInput) {
   return result.rows[0];
 }
 
-export async function listSessionsByAgent(agentId: string) {
+export async function listSessionsByAgent(
+  agentId: string,
+  filters?: { status?: string; template_slug?: string; limit?: number }
+) {
+  const conditions = ["agent_id = $1"];
+  const values: unknown[] = [agentId];
+  let paramIndex = 2;
+
+  if (filters?.status) {
+    conditions.push(`status = $${paramIndex}`);
+    values.push(filters.status);
+    paramIndex++;
+  }
+  if (filters?.template_slug) {
+    conditions.push(`template_slug = $${paramIndex}`);
+    values.push(filters.template_slug);
+    paramIndex++;
+  }
+
+  const limit = filters?.limit ?? 50;
+
   const result = await query<Session>(
     `
       select id, status, created_at, expires_at, completed_at, template_id, template_slug
       from sessions
-      where agent_id = $1
+      where ${conditions.join(" and ")}
       order by created_at desc
-      limit 50
+      limit ${limit}
     `,
-    [agentId]
+    values
   );
 
   return result.rows;

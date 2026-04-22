@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
-import { listTemplates } from "@/lib/templates";
+import { listTemplateSummaries } from "@/lib/templates";
 
 export async function GET() {
-  const templates = listTemplates();
+  const templates = listTemplateSummaries();
 
   return NextResponse.json({ templates });
 }

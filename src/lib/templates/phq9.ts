@@ -7,6 +7,8 @@ export const PHQ9_TEMPLATE: TemplateDefinition = {
   description:
     "Patient Health Questionnaire-9，用于筛查和评估抑郁症状严重程度的标准化工具。",
   version: "1.0.0",
+  category: "depression",
+  tags: ["抑郁", "情绪", "PHQ-9", "筛查"],
   schema: {
     instructions:
       "在过去两周里，以下问题对您困扰的频率如何？请选择最符合您情况的选项。",

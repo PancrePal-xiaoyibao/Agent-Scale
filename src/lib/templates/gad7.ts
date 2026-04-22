@@ -7,6 +7,8 @@ export const GAD7_TEMPLATE: TemplateDefinition = {
   description:
     "Generalized Anxiety Disorder-7，用于筛查和评估广泛性焦虑障碍的标准化工具。",
   version: "1.0.0",
+  category: "anxiety",
+  tags: ["焦虑", "情绪", "GAD-7", "筛查"],
   schema: {
     instructions:
       "在过去两周里，以下问题对您困扰的频率如何？请选择最符合您情况的选项。",

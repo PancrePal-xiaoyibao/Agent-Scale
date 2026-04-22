@@ -13,8 +13,22 @@ export interface TemplateDefinition {
   name: string;
   description: string;
   version: string;
+  category: string;
+  tags: string[];
   schema: TemplateSchema;
   scoring_rules: ScoringRules;
+}
+
+export interface TemplateSummary {
+  id: string;
+  slug: string;
+  name: string;
+  description: string;
+  category: string;
+  tags: string[];
+  question_count: number;
+  estimated_minutes: number;
+  version: string;
 }
 
 export interface AssessmentTemplate extends TemplateDefinition {

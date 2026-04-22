@@ -6,6 +6,8 @@ export const SSS_TEMPLATE: TemplateDefinition = {
   name: "SSS 躯体化症状自评量表",
   description: "Somatic Symptom Scale，用于评估躯体化症状严重程度的自评工具。",
   version: "1.0.0",
+  category: "somatic",
+  tags: ["躯体化", "身体症状", "SSS", "自评"],
   schema: {
     instructions:
       "您发病过程中可能存在下列各种症状。初诊请根据近半年情况、复诊请根据目前情况选择，症状可多选，并以选择出相关症状最重的作为严重程度分值。",
